@@ -1,0 +1,76 @@
+pragma solidity ^0.8.0;
+
+contract MultiSigDataStorage {
+    struct Data {
+        uint256 id;
+        string data;
+    }
+
+    mapping(uint256 => Data) public datas;
+
+    uint256 public totalOwners;
+    mapping(address => bool) public isOwner;
+    mapping(uint256 => mapping(address => bool)) public hasApproved;
+
+    event DataAdded(uint256 id, string data);
+    event DataUpdated(uint256 id, string data);
+    event OwnerAdded(address owner);
+    event OwnerRemoved(address owner);
+
+    modifier onlyOwner() {
+        require(isOwner[msg.sender], "Not an owner");
+        _;
+    }
+
+    constructor(address[] memory _owners) {
+        require(_owners.length > 0, "At least one owner required");
+        for (uint256 i = 0; i < _owners.length; i++) {
+            require(!isOwner[_owners[i]], "Duplicate owner");
+            isOwner[_owners[i]] = true;
+        }
+        totalOwners = _owners.length;
+    }
+
+    function addOwner(address _owner) public onlyOwner {
+        require(!isOwner[_owner], "Owner already exists");
+        isOwner[_owner] = true;
+        totalOwners++;
+        emit OwnerAdded(_owner);
+    }
+
+    function removeOwner(address _owner) public onlyOwner {
+        require(isOwner[_owner], "Owner does not exist");
+        isOwner[_owner] = false;
+        totalOwners--;
+        emit OwnerRemoved(_owner);
+    }
+
+    function addData(uint256 id, string memory _data, address[] memory ownersAgree) public onlyOwner {
+        require(validateOwners(ownersAgree), "Invalid owners");
+        require(ownersAgree.length * 2 > totalOwners, "Not enough approvals");
+        datas[id] = Data(id, _data);
+        emit DataAdded(id, _data);
+    }
+
+    function updateData(uint256 id, string memory _data, address[] memory ownersAgree) public onlyOwner {
+        require(validateOwners(ownersAgree), "Invalid owners");
+        require(ownersAgree.length * 2 > totalOwners, "Not enough approvals");
+        require(datas[id].id != 0, "Data does not exist");
+        datas[id].data = _data;
+        emit DataUpdated(id, _data);
+    }
+    
+    function getData(uint256 id) public view returns (uint256, string memory) {
+        require(datas[id].id != 0, "Data does not exist");
+        return (datas[id].id, datas[id].data);
+    }
+
+    function validateOwners(address[] memory ownersAgree) internal view returns (bool) {
+        for (uint256 i = 0; i < ownersAgree.length; i++) {
+            if (!isOwner[ownersAgree[i]]) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
